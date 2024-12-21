@@ -2,8 +2,6 @@
 
 use bitfield_struct::bitfield;
 
-use crate::sizeof;
-
 #[bitfield(u64)]
 struct GdtSegmentSelector {
     pub limit_low: u16,
@@ -69,19 +67,8 @@ impl Gdt {
     }
 }
 
-#[used]
-#[unsafe(no_mangle)]
-pub static GDT: Gdt = Gdt::new();
-
 #[repr(C, packed)]
 pub struct Gdtr64 {
     pub size: u16,
     pub offset: u64,
 }
-
-#[used]
-#[unsafe(no_mangle)]
-pub static mut GDTR: Gdtr64 = Gdtr64 {
-    size: sizeof!(Gdt) as u16 - 1,
-    offset: 0,
-};

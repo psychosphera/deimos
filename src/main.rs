@@ -13,10 +13,10 @@ use core::{
     panic::PanicInfo,
 };
 
-use arch::x86::pages::{
+use arch::x86::{gdt::{Gdt, Gdtr64}, pages::{
     PageDirectoryPointerTable4k, PageDirectoryTable4k, PageTable, Pdpte4k, Pdte4k, Pml4Table4k,
     Pml4te4k, Pml5Table4k, Pml5te4k,
-};
+}};
 // use common::LinkerSymbol;
 
 // unsafe extern "C" {
@@ -35,6 +35,17 @@ impl InitStack {
 #[used]
 #[unsafe(no_mangle)]
 static mut INIT_STACK: InitStack = InitStack::new();
+
+#[used]
+#[unsafe(no_mangle)]
+pub static GDT: Gdt = Gdt::new();
+
+#[used]
+#[unsafe(no_mangle)]
+pub static mut GDTR: Gdtr64 = Gdtr64 {
+    size: sizeof!(Gdt) as u16 - 1,
+    offset: 0,
+};
 
 #[used]
 #[unsafe(no_mangle)]
