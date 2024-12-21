@@ -27,7 +27,7 @@ struct GdtSegmentSelector {
 }
 
 impl GdtSegmentSelector {
-    const NULL: Self = GdtSegmentSelector::from_bits(0); 
+    const NULL: Self = GdtSegmentSelector::from_bits(0);
 
     const BASE: Self = GdtSegmentSelector::from_bits(0)
         .with_limit_low(0xFFFF)
@@ -66,7 +66,6 @@ impl Gdt {
             ucode: GdtSegmentSelector::USER_CODE,
             udata: GdtSegmentSelector::USER_DATA,
         }
-
     }
 }
 
@@ -82,7 +81,7 @@ pub struct Gdtr64 {
 
 #[used]
 #[unsafe(no_mangle)]
-pub static mut GDTR: Gdtr64 = Gdtr64 { 
-    size: sizeof!(Gdt) as u16 - 1, 
+pub static mut GDTR: Gdtr64 = Gdtr64 {
+    size: sizeof!(Gdt) as u16 - 1,
     offset: 0,
 };

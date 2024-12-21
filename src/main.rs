@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(never_type)]
-
 #![allow(non_camel_case_types)]
 
 mod arch;
@@ -9,18 +8,24 @@ mod arch;
 mod common;
 mod multiboot;
 
-use core::{arch::{asm, global_asm}, panic::PanicInfo};
+use core::{
+    arch::{asm, global_asm},
+    panic::PanicInfo,
+};
 
-use arch::x86::pages::{PageDirectoryPointerTable4k, PageDirectoryTable4k, PageTable, Pdpte4k, Pdte4k, Pml4Table4k, Pml4te4k, Pml5Table4k, Pml5te4k};
-use common::LinkerSymbol;
+use arch::x86::pages::{
+    PageDirectoryPointerTable4k, PageDirectoryTable4k, PageTable, Pdpte4k, Pdte4k, Pml4Table4k,
+    Pml4te4k, Pml5Table4k, Pml5te4k,
+};
+// use common::LinkerSymbol;
 
-unsafe extern "C" {
-    static KERNEL_START: LinkerSymbol;
-    static KERNEL_END: LinkerSymbol;
-}
+// unsafe extern "C" {
+//     static KERNEL_START: LinkerSymbol;
+//     static KERNEL_END: LinkerSymbol;
+// }
 
 #[repr(align(16))]
-struct InitStack([u8; 16384]);
+struct InitStack(#[allow(unused)] [u8; 16384]);
 impl InitStack {
     const fn new() -> Self {
         Self([0u8; 16384])
@@ -39,16 +44,17 @@ static mut INIT_PML5T: Pml5Table4k = Pml5Table4k([Pml5te4k::new(); 512]);
 static mut INIT_PML4T: Pml4Table4k = Pml4Table4k([Pml4te4k::new(); 512]);
 #[used]
 #[unsafe(no_mangle)]
-static mut INIT_PDPT:  PageDirectoryPointerTable4k = PageDirectoryPointerTable4k([Pdpte4k::new(); 512]);
+static mut INIT_PDPT: PageDirectoryPointerTable4k =
+    PageDirectoryPointerTable4k([Pdpte4k::new(); 512]);
 #[used]
 #[unsafe(no_mangle)]
-static mut INIT_PDT:   PageDirectoryTable4k = PageDirectoryTable4k([Pdte4k::new(); 512]);
+static mut INIT_PDT: PageDirectoryTable4k = PageDirectoryTable4k([Pdte4k::new(); 512]);
 #[used]
 #[unsafe(no_mangle)]
-static mut INIT_PT:    PageTable = PageTable::identity();
+static mut INIT_PT: PageTable = PageTable::identity();
 
-
-global_asm!("
+global_asm!(
+    "
     .code32
 
     .global _start
@@ -130,24 +136,33 @@ global_asm!("
 
         // assumes kernal code selector is 0x0008
         ljmp 0x0008, offset kernel_main
-");
+"
+);
 
 #[unsafe(no_mangle)]
 extern "C" fn kernel_main() -> ! {
     loop {
-        unsafe { asm!("
+        unsafe {
+            asm!(
+                "
             cli
             hlt
-        ") };
+        "
+            )
+        };
     }
 }
 
 #[panic_handler]
 fn panic_handler(_info: &PanicInfo) -> ! {
     loop {
-        unsafe { asm!("
+        unsafe {
+            asm!(
+                "
             cli
             hlt
-        ") };
+        "
+            )
+        };
     }
 }

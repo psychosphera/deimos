@@ -8,6 +8,5 @@ macro_rules! sizeof {
     };
 }
 
-#[repr(C)]
-#[allow(unused)]
-pub struct LinkerSymbol {}
+// #[repr(C)]
+// pub struct LinkerSymbol {}
