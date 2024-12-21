@@ -1,0 +1,21 @@
+[package]
+name = "deimos"
+version = "0.1.0"
+edition = "2024"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+bitfield-struct = "0.10.0"
+bitflags = "2.6.0"
+
+[[bin]]
+name = "deimos"
+path = "src/main.rs"
+test = false
+doctest = false
+bench = false
