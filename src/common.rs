@@ -1,5 +1,7 @@
+use core::ffi::c_void;
+
 #[macro_export]
-macro_rules! sizeof {
+macro_rules! size_of {
     ($t:ty) => {
         core::mem::size_of::<$t>()
     };
@@ -8,5 +10,7 @@ macro_rules! sizeof {
     };
 }
 
-// #[repr(C)]
-// pub struct LinkerSymbol {}
+#[repr(C)]
+pub struct LinkerSymbol {
+    __: c_void,
+}

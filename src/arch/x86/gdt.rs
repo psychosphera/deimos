@@ -1,5 +1,7 @@
 #![allow(non_upper_case_globals, non_snake_case)]
 
+use core::mem::offset_of;
+
 use bitfield_struct::bitfield;
 
 #[bitfield(u64)]
@@ -56,6 +58,13 @@ pub struct Gdt {
 }
 
 impl Gdt {
+    pub const KERNEL_CODE_SELECTOR: usize = offset_of!(Gdt, kcode);
+    pub const KERNEL_DATA_SELECTOR: usize = offset_of!(Gdt, kdata);
+    #[allow(unused)]
+    pub const USER_CODE_SELECTOR: usize = offset_of!(Gdt, ucode);
+    #[allow(unused)]
+    pub const USER_DATA_SELECTOR: usize = offset_of!(Gdt, udata);
+
     pub const fn new() -> Self {
         Self {
             null: GdtSegmentSelector::NULL,
@@ -71,4 +80,8 @@ impl Gdt {
 pub struct Gdtr64 {
     pub size: u16,
     pub offset: u64,
+}
+
+impl Gdtr64 {
+    pub const GDTR_OFFSET: usize = offset_of!(Gdtr64, offset);
 }

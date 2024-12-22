@@ -6,31 +6,41 @@
 mod arch;
 #[macro_use]
 mod common;
-mod multiboot;
+mod multiboot2;
 
 use core::{
-    arch::{asm, global_asm},
-    panic::PanicInfo,
+    arch::{asm, global_asm}, hint::black_box, panic::PanicInfo, ptr::addr_of
 };
 
 use arch::x86::{gdt::{Gdt, Gdtr64}, pages::{
     PageDirectoryPointerTable4k, PageDirectoryTable4k, PageTable, Pdpte4k, Pdte4k, Pml4Table4k,
     Pml4te4k, Pml5Table4k, Pml5te4k,
 }};
-// use common::LinkerSymbol;
+use multiboot2::{Multiboot2Header, Multiboot2Info, MULTIBOOT2_LOAD_MAGIC};
+use common::LinkerSymbol;
 
-// unsafe extern "C" {
-//     static KERNEL_START: LinkerSymbol;
-//     static KERNEL_END: LinkerSymbol;
-// }
+unsafe extern "C" {
+    static KERNEL_START: LinkerSymbol;
+    static KERNEL_END: LinkerSymbol;
+}
+
+fn kernel_size() -> usize {
+    addr_of!(KERNEL_END) as usize - addr_of!(KERNEL_START) as usize
+}
 
 #[repr(align(16))]
-struct InitStack(#[allow(unused)] [u8; 16384]);
+struct InitStack(#[allow(unused)] [u8; InitStack::SIZE]);
 impl InitStack {
+    const SIZE: usize = 16384;
+
     const fn new() -> Self {
-        Self([0u8; 16384])
+        Self([0u8; Self::SIZE])
     }
 }
+
+#[used]
+#[unsafe(link_section = ".multiboot2")]
+static mut MULTIBOOT2_HEADER: Multiboot2Header = Multiboot2Header::new();
 
 #[used]
 #[unsafe(no_mangle)]
@@ -38,12 +48,12 @@ static mut INIT_STACK: InitStack = InitStack::new();
 
 #[used]
 #[unsafe(no_mangle)]
-pub static GDT: Gdt = Gdt::new();
+static mut GDT: Gdt = Gdt::new();
 
 #[used]
 #[unsafe(no_mangle)]
-pub static mut GDTR: Gdtr64 = Gdtr64 {
-    size: sizeof!(Gdt) as u16 - 1,
+static mut GDTR: Gdtr64 = Gdtr64 {
+    size: size_of!(Gdt) as u16 - 1,
     offset: 0,
 };
 
@@ -65,93 +75,40 @@ static mut INIT_PDT: PageDirectoryTable4k = PageDirectoryTable4k([Pdte4k::new();
 static mut INIT_PT: PageTable = PageTable::identity();
 
 global_asm!(
-    "
-    .code32
-
-    .global _start
-
-    // sets up a basic page table that identity maps the first 2mb of memory
-    // intended to be replaced with a proper page table by the kernel
-    // assumes kernel KERNEL_END < 2mb
-    init_paging:
-        // assumes INIT_PT is already initialized in Rust
-
-        mov eax, INIT_PT
-        or eax, 0x00000003 // set Present and RW bits
-        or [INIT_PDT], eax
-
-        mov eax, INIT_PDT
-        or eax, 0x00000003 // set Present and RW bits
-        or [INIT_PDPT], eax
-        
-        mov eax, INIT_PDPT
-        or eax, 0x00000003 // set Present and RW bits
-        or [INIT_PML4T], eax
-
-        mov eax, INIT_PML4T
-        or eax, 0x00000003 // set Present and RW bits
-        or [INIT_PML5T], eax
-
-        // clear CR0.PG in case it's enabled for some reason
-        mov ebx, cr0
-        and ebx, 0x7FFFFFFF
-        mov cr0, ebx
-
-        // set CR4.PAE
-        mov eax, cr4
-        or eax, 0x00000020
-        mov cr4, eax
-
-        // set EFER.LME
-        mov ecx, 0xC0000080
-        rdmsr
-        or ecx, 0x00000100
-        wrmsr
-
-        mov eax, INIT_PML4T
-        mov cr3, eax
-
-        // set CR0.PG
-        or ebx, 0x80000000
-        mov cr0, ebx
-
-        ret
-
-    // sets GDTR.base to addr_of GDT and loads GDT
-    init_gdt: 
-        // assumes GDT is loaded in the lower 4GB of memory
-        mov eax, GDT
-        mov [GDTR+2], eax
-        lgdt [GDTR]
-        ret
-
-    _start:
-        // multiboot2 doesn't guarantee us a stack, so we have to make one
-        mov esp, INIT_STACK
-        // assumes stack size is 16384
-        add esp, 16384
-        push eax
-        push ebx
-        push ecx
-        call init_gdt
-        call init_paging
-        // assumes kernal data selector is 0x0010
-        mov ax, 0x0010
-        mov ds, ax
-        mov es, ax 
-        mov fs, ax
-        mov gs, ax
-        pop ecx
-        pop ebx
-        pop eax
-
-        // assumes kernal code selector is 0x0008
-        ljmp 0x0008, offset kernel_main
-"
+    include_str!("boot.s"),
+    KERNEL_CODE_SELECTOR = const Gdt::KERNEL_CODE_SELECTOR,
+    KERNEL_DATA_SELECTOR = const Gdt::KERNEL_DATA_SELECTOR,
+    PAGE_PRESENT         = const 0x00000001,
+    PAGE_RW              = const 0x00000002,
+    CR0_PG               = const 0x80000000u32 as i32,
+    CR4_PAE              = const 0x00000020,
+    EFER                 = const 0xC0000080u32 as i32,
+    EFER_LME             = const 0x00000100,
+    INIT_STACK_SIZE      = const InitStack::SIZE,
+    GDTR_OFFSET          = const Gdtr64::GDTR_OFFSET,
 );
 
 #[unsafe(no_mangle)]
-extern "C" fn kernel_main() -> ! {
+extern "C" fn kernel_main(magic: u32, multiboot2_info: *mut Multiboot2Info) -> ! {
+    black_box(&raw const MULTIBOOT2_HEADER);
+    black_box(&raw const INIT_STACK);
+    black_box(&raw const INIT_PML5T);
+    black_box(&raw const INIT_PML4T);
+    black_box(&raw const INIT_PDPT);
+    black_box(&raw const INIT_PDT);
+    black_box(&raw const INIT_PT);
+    black_box(&raw const GDT);
+    black_box(&raw const GDTR);
+
+    assert!(magic == MULTIBOOT2_LOAD_MAGIC);
+    assert!(!multiboot2_info.is_null());
+    assert!(kernel_size() <= 2 * 1024 * 1024);
+
+    let s = b"Hello, World!";
+    for (i, c) in s.iter().enumerate() {
+        unsafe { *(0x000B8000 as *mut u16).add(i) = *c as u16 | 0x0F00 };
+    }
+
     loop {
         unsafe {
             asm!(
@@ -166,6 +123,11 @@ extern "C" fn kernel_main() -> ! {
 
 #[panic_handler]
 fn panic_handler(_info: &PanicInfo) -> ! {
+    let s = b"Panicked!";
+    for (i, c) in s.iter().enumerate() {
+        unsafe { *(0x000B8000 as *mut u16).add(i) = *c as u16 | 0x0400 };
+    }
+
     loop {
         unsafe {
             asm!(
