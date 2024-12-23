@@ -139,9 +139,9 @@ pub struct Pte {
     pub write_through: bool,
     pub cache_disable: bool,
     pub accessed: bool,
-    pub available: bool,
     pub dirty: bool,
-    pub page_size: bool,
+    pub page_attribute: bool,
+    pub global: bool,
     #[bits(3)]
     pub available_2: u64,
     #[bits(40)]
@@ -162,7 +162,7 @@ impl Pte {
             .with_write_through(false)
             .with_cache_disable(false)
             .with_accessed(false)
-            .with_page_size(false)
+            .with_page_attribute(false)
             .with_nx(false)
     }
 }
@@ -181,9 +181,10 @@ pub struct PageTable(pub [Pte; 512]);
 impl PageTable {
     pub const fn identity() -> Self {
         let mut pt = [Pte::init(); 512];
-        let mut i = 0;
+        // don't map first page, so that null pointer derefs are caught
+        let mut i = 1;
         while i < pt.len() {
-            pt[i].set_page_paddr((i * 4096) as _);
+            pt[i].set_page_paddr(i as _);
             pt[i].set_rw(true);
             i += 1;
         }

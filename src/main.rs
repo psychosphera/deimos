@@ -59,17 +59,17 @@ static mut GDTR: Gdtr64 = Gdtr64 {
 
 #[used]
 #[unsafe(no_mangle)]
-static mut INIT_PML5T: Pml5Table4k = Pml5Table4k([Pml5te4k::new(); 512]);
+static mut INIT_PML5T: Pml5Table4k = Pml5Table4k([Pml5te4k::from_bits(0); 512]);
 #[used]
 #[unsafe(no_mangle)]
-static mut INIT_PML4T: Pml4Table4k = Pml4Table4k([Pml4te4k::new(); 512]);
+static mut INIT_PML4T: Pml4Table4k = Pml4Table4k([Pml4te4k::from_bits(0); 512]);
 #[used]
 #[unsafe(no_mangle)]
 static mut INIT_PDPT: PageDirectoryPointerTable4k =
-    PageDirectoryPointerTable4k([Pdpte4k::new(); 512]);
+    PageDirectoryPointerTable4k([Pdpte4k::from_bits(0); 512]);
 #[used]
 #[unsafe(no_mangle)]
-static mut INIT_PDT: PageDirectoryTable4k = PageDirectoryTable4k([Pdte4k::new(); 512]);
+static mut INIT_PDT: PageDirectoryTable4k = PageDirectoryTable4k([Pdte4k::from_bits(0); 512]);
 #[used]
 #[unsafe(no_mangle)]
 static mut INIT_PT: PageTable = PageTable::identity();

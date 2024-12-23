@@ -1,0 +1,1 @@
+cp ./target/x86_64-unknown-deimos/debug/deimos ./iso/boot && grub-mkrescue -o deimos.iso iso
