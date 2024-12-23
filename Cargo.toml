@@ -12,6 +12,8 @@ panic = "abort"
 [dependencies]
 bitfield-struct = "0.10.0"
 bitflags = "2.6.0"
+num-derive = "0.4.2"
+num-traits = { version = "0.2.19", default-features = false }
 
 [[bin]]
 name = "deimos"

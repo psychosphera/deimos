@@ -15,8 +15,8 @@ use core::{
 use arch::x86::{gdt::{Gdt, Gdtr64}, pages::{
     PageDirectoryPointerTable4k, PageDirectoryTable4k, PageTable, Pdpte4k, Pdte4k, Pml4Table4k,
     Pml4te4k, Pml5Table4k, Pml5te4k,
-}};
-use multiboot2::{Multiboot2Header, Multiboot2Info, MULTIBOOT2_LOAD_MAGIC};
+}, serial, vga::{self, VgaColor, VgaWriter}};
+use multiboot2::{Multiboot2Header, Multiboot2Info, Multiboot2InfoHeader, Multiboot2InfoIter, MULTIBOOT2_LOAD_MAGIC};
 use common::LinkerSymbol;
 
 unsafe extern "C" {
@@ -89,7 +89,7 @@ global_asm!(
 );
 
 #[unsafe(no_mangle)]
-extern "C" fn kernel_main(magic: u32, multiboot2_info: *mut Multiboot2Info) -> ! {
+extern "C" fn kernel_main(magic: u32, multiboot2_info: *mut Multiboot2InfoHeader) -> ! {
     black_box(&raw const MULTIBOOT2_HEADER);
     black_box(&raw const INIT_STACK);
     black_box(&raw const INIT_PML5T);
@@ -104,9 +104,28 @@ extern "C" fn kernel_main(magic: u32, multiboot2_info: *mut Multiboot2Info) -> !
     assert!(!multiboot2_info.is_null());
     assert!(kernel_size() <= 2 * 1024 * 1024);
 
-    let s = b"Hello, World!";
-    for (i, c) in s.iter().enumerate() {
-        unsafe { *(0x000B8000 as *mut u16).add(i) = *c as u16 | 0x0F00 };
+    let com1 = unsafe { serial::com1() };
+    com1.init().unwrap();
+
+    let mut vga = unsafe { VgaWriter::new() }.unwrap();
+    vga.clear(VgaColor::BLACK);
+
+    // let iter = Multiboot2InfoIter::new(multiboot2_info);
+    // for tag in iter {
+    //     match tag {
+    //         Multiboot2Info::MemoryMap(entries) => {
+
+    //         },
+    //         Multiboot2Info::Unimplemented(tag_type) => {
+
+    //         },
+    //     }
+    // }
+
+    let s = b"Hello, World!\n";
+    for c in s.iter() {
+        com1.putc(*c);
+        vga.putc(*c, VgaColor::WHITE);
     }
 
     loop {
@@ -123,9 +142,13 @@ extern "C" fn kernel_main(magic: u32, multiboot2_info: *mut Multiboot2Info) -> !
 
 #[panic_handler]
 fn panic_handler(_info: &PanicInfo) -> ! {
-    let s = b"Panicked!";
-    for (i, c) in s.iter().enumerate() {
-        unsafe { *(0x000B8000 as *mut u16).add(i) = *c as u16 | 0x0400 };
+    let s = b"Panicked!\n";
+    let com1 = unsafe { serial::com1() };
+    for c in s.iter() {
+        if let Some(mut vga) = unsafe { VgaWriter::new() } {
+            vga.putc(*c, VgaColor::RED);
+        }
+        com1.putc(*c);
     }
 
     loop {

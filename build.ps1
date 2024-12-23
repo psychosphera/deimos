@@ -1,0 +1,1 @@
+cmd /c "cargo build && wsl ./build.sh"

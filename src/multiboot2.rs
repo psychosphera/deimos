@@ -1,3 +1,8 @@
+use core::marker::PhantomData;
+
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
+
 #[repr(C, packed)]
 pub struct Multiboot2Header {
     magic: Multiboot2Magic,
@@ -57,6 +62,7 @@ struct Multiboot2FramebufferTag {
     width: u32,
     height: u32,
     depth: u32,
+    pad: u32,
 }
 
 impl Multiboot2FramebufferTag {
@@ -66,6 +72,7 @@ impl Multiboot2FramebufferTag {
             width: 1024,
             height: 768,
             depth: 32,
+            pad: 0,
         }
     }
 }
@@ -84,6 +91,107 @@ impl Multiboot2FinalTag {
 }
 
 #[repr(C, packed)]
-pub struct Multiboot2Info {
-    
+pub struct Multiboot2InfoHeader {
+    pub total_size: u32,
+    reserved: u32,
+}
+
+#[repr(C, packed)]
+pub struct Multiboot2InfoTag {
+    pub type_: u32,
+    pub size: u32,
+}
+
+#[derive(FromPrimitive)]
+#[repr(u32)]
+pub enum Multiboot2InfoTagType {
+    BOOT_CMDLINE = 1,
+    BOOTLOADER_NAME = 2,
+    MODULES = 3,
+    BASIC_MEMORY_INFO = 4,
+    BIOS_BOOT_DEVICE = 5,
+    MEMORY_MAP = 6,
+    VBE_INFO = 7,
+    FRAMEBUFFER_INFO = 8,
+    ELF_SYMBOLS = 9,
+    APM_TABLE = 10,
+    EFI_SYSTEM_TABLE_PTR_32 = 11,
+    EFI_SYSTEM_TABLE_PTR_64 = 12,
+    SMBIOS_TABLES = 13,
+    ACPI_1_0_RSDP = 14,
+    ACPI_2_0_RSDP = 15,
+    NETWORKING_INFO = 16,
+    EFI_MEMORY_MAP = 17,
+    EFI_BOOT_SERVICES_NOT_TERMINATED = 18,
+    EFI_IMAGE_HANDLE_PTR_32 = 19,
+    EFI_IMAGE_HANDLE_PTR_64 = 20,
+    IMAGE_LOAD_BASE_PADDR = 21,
+}
+
+pub enum Multiboot2Info<'a> {
+    MemoryMap(&'a [Multiboot2MemoryMapEntry]),
+    Unimplemented(Multiboot2InfoTagType),
+}
+
+#[repr(C, packed)]
+struct Multiboot2MemoryMapTag {
+    base: Multiboot2InfoTag,
+    entry_size: u32,
+    entry_version: u32,
+}
+
+#[repr(C, packed)]
+pub struct Multiboot2MemoryMapEntry {
+    pub base_paddr: u64,
+    pub length: u64,
+    pub type_: u32,
+    reserved: u32,
+}
+
+pub struct Multiboot2InfoIter<'a> {
+    begin_ptr: *const u8,
+    current_ptr: *const Multiboot2InfoTag,
+    total_size: u32,
+    __p: PhantomData<&'a ()>,
+}
+
+impl<'a> Iterator for Multiboot2InfoIter<'a> {
+    type Item = Multiboot2Info<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_ptr as usize >= unsafe { self.begin_ptr.add(self.total_size as _) } as usize {
+            return None;
+        }
+
+        let item = match Multiboot2InfoTagType::from_u32(unsafe {(*self.current_ptr).type_})? {
+            Multiboot2InfoTagType::MEMORY_MAP => {
+                let tag = self.current_ptr.cast::<Multiboot2MemoryMapTag>();
+                let slice = unsafe {
+                    let entries_ptr = tag.add(1).cast::<Multiboot2MemoryMapEntry>();
+                    let count = ((*tag).base.size as usize - size_of!(Multiboot2MemoryMapTag)) / size_of!(Multiboot2MemoryMapEntry);
+                    core::slice::from_raw_parts(entries_ptr, count)
+                };
+                Multiboot2Info::MemoryMap(slice)
+            },
+            other => Multiboot2Info::Unimplemented(other),
+        };
+        let p = unsafe { self.current_ptr.cast::<u8>().add((*self.current_ptr).size as usize) };
+        self.current_ptr = unsafe { p.add(p.align_offset(8)).cast() };
+        
+        Some(item)
+    }
+}
+
+impl<'a> Multiboot2InfoIter<'a> {
+    pub fn new(header: *const Multiboot2InfoHeader) -> Self {
+        let tags = unsafe { header.add(1).cast::<Multiboot2InfoTag>() };
+        let total_size = unsafe { (*header).total_size };
+
+        Self {
+            begin_ptr: tags.cast(),
+            current_ptr: tags,
+            total_size,
+            __p: PhantomData,
+        }
+    }
 }
