@@ -109,6 +109,7 @@ extern "C" fn kernel_main(magic: u32, multiboot2_info: *mut Multiboot2InfoHeader
 
     let mut vga = unsafe { VgaWriter::new() }.unwrap();
     vga.clear(VgaColor::BLACK);
+    vga.enable_cursor();
 
     // let iter = Multiboot2InfoIter::new(multiboot2_info);
     // for tag in iter {
@@ -122,7 +123,7 @@ extern "C" fn kernel_main(magic: u32, multiboot2_info: *mut Multiboot2InfoHeader
     //     }
     // }
 
-    let s = b"Hello, World!\n";
+    let s = b"Hello, World!\nThis is a new line\n";
     for c in s.iter() {
         com1.putc(*c);
         vga.putc(*c, VgaColor::WHITE);
