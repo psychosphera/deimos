@@ -1,5 +1,7 @@
 use core::sync::atomic::{AtomicIsize, Ordering};
 
+use volatile::VolatileRef;
+
 use super::ports::{PortRW, PortRead, PortWrite};
 
 const VGA_BUFFER: *mut u16 = 0x000B8000 as _;
@@ -79,7 +81,7 @@ impl VgaCursor {
 
 pub struct VgaWriter {
     pos: usize,
-    buf: &'static mut [u16],
+    buf: VolatileRef<'static, [u16]>,
     cursor: VgaCursor,
 }
 
@@ -115,7 +117,7 @@ impl VgaWriter {
             return None;
         }
 
-        let buf = unsafe { core::slice::from_raw_parts_mut(VGA_BUFFER, VGA_BUFFER_LEN) };
+        let buf = VolatileRef::from_mut_ref(unsafe { core::slice::from_raw_parts_mut(VGA_BUFFER, VGA_BUFFER_LEN) });
         let pos = 0;
         let cursor = unsafe { VgaCursor::new() };
         
@@ -128,9 +130,24 @@ impl VgaWriter {
         })
     }
 
+    fn read(&mut self, index: usize) -> u16 {
+        assert!(index < VGA_BUFFER_LEN);
+
+        let c = unsafe { self.buf.as_mut_ptr().as_raw_ptr().cast::<u16>().add(index) };
+        unsafe { c.read_volatile() }
+    }
+
+    fn write(&mut self, index: usize, val: u16) {
+        assert!(index < VGA_BUFFER_LEN);
+
+        let c = unsafe { self.buf.as_mut_ptr().as_raw_ptr().cast::<u16>().add(index) };
+        unsafe { c.write_volatile(val) };
+    }
+
     pub fn clear(&mut self, background_color: VgaColor) {
-        for c in self.buf.iter_mut() {
-            *c = ((background_color as u16) << 12) & 0xF000;
+        for i in 0..VGA_BUFFER_LEN {
+            let c = unsafe { self.buf.as_mut_ptr().as_raw_ptr().cast::<u16>().add(i) };
+            self.write(i, ((background_color as u16) << 12) & 0xF000);
         }
 
         self.pos = 0;
@@ -156,7 +173,7 @@ impl VgaWriter {
             return;
         }
 
-        if self.pos >= self.buf.len() {
+        if self.pos >= VGA_BUFFER_LEN {
             self.scroll();
         }
 
@@ -165,7 +182,8 @@ impl VgaWriter {
             return;
         }
 
-        self.buf[self.pos] = self.buf[self.pos] & 0xF000 | c as u16 | (((text_color as u16) << 8) & 0x0F00);
+        let val = self.read(self.pos) & 0xF000 | c as u16 | (((text_color as u16) << 8) & 0x0F00);
+        self.write(self.pos, val);
         self.pos += 1;
     }
 
@@ -188,7 +206,8 @@ impl VgaWriter {
                 self.pos += VGA_WIDTH - self.pos % VGA_WIDTH;
             },
             0x08 => { // backspace
-                self.buf[self.pos] = self.buf[self.pos] & 0xF000 | b' ' as u16 | (((text_color as u16) << 8) & 0x0F00);
+                let val= self.read(self.pos) & 0xF000 | b' ' as u16 | (((text_color as u16) << 8) & 0x0F00);
+                self.write(self.pos, val);
             },
             _ => {}
         }
